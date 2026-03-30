@@ -29,7 +29,7 @@
 ### 2. 克隆项目
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/ai-assistant-platform.git
+git clone https://github.com/tttyix/ai-assistant-platform.git
 cd ai-assistant-platform
 ```
 
@@ -385,9 +385,9 @@ ports:
 
 ## 📬 联系方式
 
-- **项目主页**: https://github.com/YOUR_USERNAME/ai-assistant-platform
-- **问题反馈**: https://github.com/YOUR_USERNAME/ai-assistant-platform/issues
-- **邮箱**: your.email@example.com
+- **项目主页**: https://github.com/tttyix/ai-assistant-platform
+- **问题反馈**: https://github.com/tttyix/ai-assistant-platform/issues
+- **邮箱**: tttyix@github.com
 
 ---
 
