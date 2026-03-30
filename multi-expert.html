@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多专家咨询系统 - AI 助手平台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #999;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .experts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 30px 0;
+        }
+        .expert-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        .expert-card:hover {
+            border-color: #667eea;
+            background: #f5f5ff;
+            transform: translateY(-2px);
+        }
+        .expert-card.selected {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .expert-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        .expert-name {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .expert-role {
+            font-size: 12px;
+            color: #666;
+        }
+        .expert-card.selected .expert-role {
+            color: #fff;
+        }
+        .task-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            resize: vertical;
+            min-height: 120px;
+            margin: 20px 0;
+        }
+        .task-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .mode-selector {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .mode-btn:hover {
+            border-color: #667eea;
+        }
+        .mode-btn.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .execute-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .execute-btn:hover {
+            transform: translateY(-2px);
+        }
+        .execute-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result-box {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+        .result-box.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .expert-response {
+            background: white;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+        .expert-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .suggestions {
+            background: #f0f0f0;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        .suggestions h4 {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #667eea;
+        }
+        .suggestions ul {
+            margin-left: 20px;
+        }
+        .suggestions li {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-size: 16px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 多专家咨询系统</h1>
+        <p class="subtitle">类似 WorkBuddy 的多 Agent 协作 - 选择专家，获取专业建议</p>
+
+        <div class="experts-grid" id="expertsGrid">
+            <!-- 专家卡片将通过 JS 动态生成 -->
+        </div>
+
+        <div class="input-group">
+            <label style="font-weight: bold; color: #555; display: block; margin-bottom: 10px;">
+                💬 你想咨询什么问题？
+            </label>
+            <textarea 
+                class="task-input" 
+                id="taskInput" 
+                placeholder="例如：我想为新产品制定一个营销策略，目标用户是 25-35 岁的职场人士..."></textarea>
+        </div>
+
+        <div class="input-group">
+            <label style="font-weight: bold; color: #555; display: block; margin-bottom: 10px;">
+                ⚙️ 执行模式
+            </label>
+            <div class="mode-selector">
+                <button class="mode-btn active" onclick="selectMode('sequential')">
+                    📝 顺序执行（专家依次回答）
+                </button>
+                <button class="mode-btn" onclick="selectMode('parallel')">
+                    ⚡ 并行执行（专家同时回答）
+                </button>
+                <button class="mode-btn" onclick="selectMode('discussion')">
+                    💬 讨论模式（专家互相讨论）
+                </button>
+            </div>
+        </div>
+
+        <button class="execute-btn" onclick="consultExperts()" id="executeBtn">
+            🚀 开始咨询
+        </button>
+
+        <div class="result-box" id="resultBox">
+            <!-- 结果将在这里显示 -->
+        </div>
+    </div>
+
+    <script>
+        let selectedExperts = [];
+        let selectedMode = 'sequential';
+
+        // 专家配置
+        const experts = [
+            { id: 'marketing', name: '营销专家', role: '营销策略与品牌推广', icon: '📈' },
+            { id: 'technical', name: '技术专家', role: '技术架构与开发', icon: '💻' },
+            { id: 'design', name: '设计专家', role: 'UI/UX 设计', icon: '🎨' },
+            { id: 'data', name: '数据专家', role: '数据分析与决策', icon: '📊' },
+            { id: 'product', name: '产品专家', role: '产品规划与设计', icon: '📱' },
+            { id: 'operation', name: '运营专家', role: '内容运营与活动策划', icon: '📢' },
+            { id: 'writing', name: '写作专家', role: '文档撰写与编辑', icon: '✍️' },
+            { id: 'translation', name: '翻译专家', role: '多语言翻译', icon: '🌐' },
+            { id: 'ppt', name: 'PPT 专家', role: '演示文稿设计', icon: '📊' },
+            { id: 'meeting', name: '会议专家', role: '会议管理与纪要', icon: '🤝' }
+        ];
+
+        // 初始化专家卡片
+        function initExperts() {
+            const grid = document.getElementById('expertsGrid');
+            grid.innerHTML = experts.map(expert => `
+                <div class="expert-card" onclick="toggleExpert('${expert.id}')" id="expert-${expert.id}">
+                    <div class="expert-icon">${expert.icon}</div>
+                    <div class="expert-name">${expert.name}</div>
+                    <div class="expert-role">${expert.role}</div>
+                </div>
+            `).join('');
+        }
+
+        // 选择/取消选择专家
+        function toggleExpert(expertId) {
+            const index = selectedExperts.indexOf(expertId);
+            const card = document.getElementById(`expert-${expertId}`);
+            
+            if (index > -1) {
+                selectedExperts.splice(index, 1);
+                card.classList.remove('selected');
+            } else {
+                selectedExperts.push(expertId);
+                card.classList.add('selected');
+            }
+        }
+
+        // 选择模式
+        function selectMode(mode) {
+            selectedMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // 咨询专家
+        async function consultExperts() {
+            const task = document.getElementById('taskInput').value.trim();
+            const resultBox = document.getElementById('resultBox');
+            const executeBtn = document.getElementById('executeBtn');
+
+            if (!task) {
+                alert('请输入咨询问题！');
+                return;
+            }
+
+            if (selectedExperts.length === 0) {
+                alert('请至少选择一位专家！');
+                return;
+            }
+
+            executeBtn.disabled = true;
+            executeBtn.textContent = '⏳ 咨询中...';
+            resultBox.style.display = 'block';
+            resultBox.className = 'result-box loading';
+            resultBox.innerHTML = '<span class="spinner"></span>正在咨询专家，请稍候...';
+
+            setTimeout(() => {
+                resultBox.className = 'result-box show';
+                
+                // 模拟结果（实际应该调用 API）
+                let html = '<h2 style="margin-bottom: 20px; color: #667eea;">📋 专家建议</h2>';
+                
+                selectedExperts.forEach(expertId => {
+                    const expert = experts.find(e => e.id === expertId);
+                    html += `
+                        <div class="expert-response">
+                            <div class="expert-header">
+                                <span style="font-size: 24px;">${expert.icon}</span>
+                                <span>${expert.name}</span>
+                            </div>
+                            <div>${expert.role}的专业建议内容...</div>
+                            <div class="suggestions">
+                                <h4>💡 建议行动项：</h4>
+                                <ul>
+                                    <li>建议 1</li>
+                                    <li>建议 2</li>
+                                    <li>建议 3</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                    <div style="margin-top: 30px; padding: 20px; background: #667eea; color: white; border-radius: 10px;">
+                        <h3 style="margin-bottom: 10px;">🎯 综合建议</h3>
+                        <p>综合各位专家的意见，建议按以下步骤行动...</p>
+                    </div>
+                `;
+
+                resultBox.innerHTML = html;
+            }, 2000);
+
+            executeBtn.disabled = false;
+            executeBtn.textContent = '🚀 开始咨询';
+        }
+
+        // 初始化
+        initExperts();
+    </script>
+</body>
+</html>

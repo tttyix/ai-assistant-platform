@@ -8,7 +8,7 @@ from datetime import datetime
 
 from ...services.workflow_engine import workflow_engine
 
-router = APIRouter(prefix="/workflows", tags=["工作流"])
+router = APIRouter(tags=["⚡ 工作流协作"])
 
 
 class WorkflowExecuteRequest(BaseModel):

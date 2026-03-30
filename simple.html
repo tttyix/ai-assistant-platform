@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 助手 - 一键执行</title>
+    <title>AI 助手 - 智能协作平台</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -59,6 +59,103 @@
             outline: none;
             border-color: #667eea;
         }
+        
+        /* 专家模式开关 */
+        .expert-mode-toggle {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .toggle-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+        .toggle-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: bold;
+            color: #555;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: #e0e0e0;
+            border-radius: 13px;
+            transition: background 0.3s;
+        }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .toggle-switch.active {
+            background: #667eea;
+        }
+        .toggle-switch.active::after {
+            transform: translateX(24px);
+        }
+        
+        /* 专家选择区域 */
+        .expert-selection {
+            display: none;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .expert-selection.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .experts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .expert-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            font-size: 13px;
+        }
+        .expert-card:hover {
+            border-color: #667eea;
+            background: #f5f5ff;
+            transform: translateY(-2px);
+        }
+        .expert-card.selected {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .expert-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        .expert-name {
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
         .mode-selector {
             display: flex;
             gap: 10px;
@@ -176,16 +273,6 @@
             background: #667eea;
             color: white;
         }
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        .status-success { background: #4CAF50; color: white; }
-        .status-error { background: #f44336; color: white; }
     </style>
 </head>
 <body>
@@ -198,20 +285,39 @@
             <textarea id="taskInput" placeholder="例如：帮我写一个 Python 计算器类，支持加减乘除运算..."></textarea>
         </div>
 
+        <!-- 专家模式开关 -->
+        <div class="expert-mode-toggle">
+            <div class="toggle-header" onclick="toggleExpertMode()">
+                <div class="toggle-title">
+                    <span>🎯 多专家协作模式</span>
+                    <span style="font-size: 12px; color: #999; font-weight: normal;">选择多个专家提供专业建议</span>
+                </div>
+                <div class="toggle-switch" id="expertToggle"></div>
+            </div>
+            
+            <!-- 专家选择区域 -->
+            <div class="expert-selection" id="expertSelection">
+                <label style="font-size: 13px; color: #666;">选择参与咨询的专家：</label>
+                <div class="experts-grid" id="expertsGrid">
+                    <!-- 专家卡片将通过 JS 动态生成 -->
+                </div>
+            </div>
+        </div>
+
         <div class="input-group">
             <label>🎯 执行模式</label>
             <div class="mode-selector">
                 <button class="mode-btn active" onclick="selectMode('aira+cc')" title="推荐">
                     🎯 协作模式
-                    <br><small>Aira 分析 + CC 执行</small>
+                    <br><small style="font-size: 11px;">Aira 分析 + CC 执行</small>
                 </button>
                 <button class="mode-btn" onclick="selectMode('aira_only')" title="仅分析">
                     📊 仅分析
-                    <br><small>代码审查/咨询</small>
+                    <br><small style="font-size: 11px;">代码审查/咨询</small>
                 </button>
                 <button class="mode-btn" onclick="selectMode('cc_only')" title="快速执行">
                     ⚡ 快速执行
-                    <br><small>简单任务</small>
+                    <br><small style="font-size: 11px;">简单任务</small>
                 </button>
             </div>
         </div>
@@ -237,7 +343,70 @@
 
     <script>
         let selectedMode = 'aira+cc';
+        let expertModeEnabled = false;
+        let selectedExperts = [];
 
+        // 专家配置
+        const experts = [
+            { id: 'marketing', name: '营销专家', role: '营销策略', icon: '📈' },
+            { id: 'technical', name: '技术专家', role: '技术架构', icon: '💻' },
+            { id: 'design', name: '设计专家', role: 'UI/UX 设计', icon: '🎨' },
+            { id: 'data', name: '数据专家', role: '数据分析', icon: '📊' },
+            { id: 'product', name: '产品专家', role: '产品规划', icon: '📱' },
+            { id: 'operation', name: '运营专家', role: '内容运营', icon: '📢' },
+            { id: 'writing', name: '写作专家', role: '文档撰写', icon: '✍️' },
+            { id: 'translation', name: '翻译专家', role: '多语言翻译', icon: '🌐' },
+            { id: 'ppt', name: 'PPT 专家', role: '演示文稿', icon: '📊' },
+            { id: 'meeting', name: '会议专家', role: '会议管理', icon: '🤝' }
+        ];
+
+        // 初始化专家卡片
+        function initExperts() {
+            const grid = document.getElementById('expertsGrid');
+            grid.innerHTML = experts.map(expert => `
+                <div class="expert-card" onclick="toggleExpert('${expert.id}')" id="expert-${expert.id}">
+                    <div class="expert-icon">${expert.icon}</div>
+                    <div class="expert-name">${expert.name}</div>
+                </div>
+            `).join('');
+        }
+
+        // 切换专家模式
+        function toggleExpertMode() {
+            expertModeEnabled = !expertModeEnabled;
+            const toggle = document.getElementById('expertToggle');
+            const selection = document.getElementById('expertSelection');
+            
+            if (expertModeEnabled) {
+                toggle.classList.add('active');
+                selection.classList.add('show');
+            } else {
+                toggle.classList.remove('active');
+                selection.classList.remove('show');
+                selectedExperts = [];
+                document.querySelectorAll('.expert-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+            }
+        }
+
+        // 选择/取消选择专家
+        function toggleExpert(expertId) {
+            if (!expertModeEnabled) return;
+            
+            const index = selectedExperts.indexOf(expertId);
+            const card = document.getElementById(`expert-${expertId}`);
+            
+            if (index > -1) {
+                selectedExperts.splice(index, 1);
+                card.classList.remove('selected');
+            } else {
+                selectedExperts.push(expertId);
+                card.classList.add('selected');
+            }
+        }
+
+        // 选择模式
         function selectMode(mode) {
             selectedMode = mode;
             document.querySelectorAll('.mode-btn').forEach(btn => {
@@ -246,10 +415,12 @@
             event.target.closest('.mode-btn').classList.add('active');
         }
 
+        // 使用示例
         function useExample(text) {
             document.getElementById('taskInput').value = text;
         }
 
+        // 执行任务
         async function executeTask() {
             const task = document.getElementById('taskInput').value.trim();
             const resultBox = document.getElementById('resultBox');
@@ -273,11 +444,23 @@
                 resultContent.textContent = 'AI 正在分析你的需求并执行任务，这可能需要几分钟时间。';
             }, 100);
 
+            // 构建请求体
+            const requestBody = {
+                task: task,
+                mode: selectedMode
+            };
+
+            // 如果专家模式已启用，添加专家信息
+            if (expertModeEnabled && selectedExperts.length > 0) {
+                requestBody.experts = selectedExperts;
+                requestBody.expert_mode = true;
+            }
+
             try {
                 const response = await fetch('http://localhost:8000/api/v1/workflows/execute', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ task: task, mode: selectedMode })
+                    body: JSON.stringify(requestBody)
                 });
 
                 if (!response.ok) {
@@ -287,11 +470,22 @@
 
                 const result = await response.json();
 
-                resultTitle.innerHTML = `✅ 执行完成 <span class="status-badge status-success">${result.status}</span>`;
+                resultTitle.innerHTML = `✅ 执行完成 <span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;background:#4CAF50;color:white;margin-left:10px;">${result.status}</span>`;
                 resultContent.textContent = result.summary || '任务已完成，但没有返回总结信息。';
 
+                // 如果启用了专家模式，显示专家信息
+                if (expertModeEnabled && selectedExperts.length > 0) {
+                    const expertNames = selectedExperts.map(id => {
+                        const expert = experts.find(e => e.id === id);
+                        return expert ? `${expert.icon}${expert.name}` : id;
+                    }).join(', ');
+                    
+                    const expertInfo = `\n\n🎯 参与专家：${expertNames}`;
+                    resultContent.textContent += expertInfo;
+                }
+
             } catch (error) {
-                resultTitle.innerHTML = `❌ 执行失败 <span class="status-badge status-error">ERROR</span>`;
+                resultTitle.innerHTML = `❌ 执行失败 <span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;background:#f44336;color:white;margin-left:10px;">ERROR</span>`;
                 resultContent.textContent = `错误信息：${error.message}\n\n请检查：\n1. 后端服务是否运行（访问 http://localhost:8000）\n2. 网络连接是否正常`;
             } finally {
                 executeBtn.disabled = false;
@@ -305,6 +499,9 @@
                 executeTask();
             }
         });
+
+        // 初始化
+        initExperts();
     </script>
 </body>
 </html>

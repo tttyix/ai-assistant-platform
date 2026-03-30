@@ -78,9 +78,10 @@ app.add_middleware(
 )
 
 # 注册路由
-app.include_router(chat_router, prefix=f"{settings.API_PREFIX}/chat", tags=["对话"])
-app.include_router(knowledge_router, prefix=f"{settings.API_PREFIX}/knowledge", tags=["知识库"])
-app.include_router(models_router, prefix=f"{settings.API_PREFIX}/models", tags=["模型"])
+app.include_router(chat_router, prefix=f"{settings.API_PREFIX}/chat", tags=["💬 智能对话"])
+app.include_router(knowledge_router, prefix=f"{settings.API_PREFIX}/knowledge", tags=["📚 知识库管理"])
+app.include_router(models_router, prefix=f"{settings.API_PREFIX}/models", tags=["🤖 AI 模型"])
+app.include_router(workflows_router, prefix=f"{settings.API_PREFIX}/workflows", tags=["⚡ 工作流协作"])
 
 
 @app.get("/")
