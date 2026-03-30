@@ -387,7 +387,7 @@ ports:
 
 - **项目主页**: https://github.com/tttyix/ai-assistant-platform
 - **问题反馈**: https://github.com/tttyix/ai-assistant-platform/issues
-- **邮箱**: 2483594243@qq.com
+- **邮箱**: tttyixu9637@163.com
 
 ---
 
