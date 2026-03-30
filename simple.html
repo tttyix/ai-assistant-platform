@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 助手 - 一键执行</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #999;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            color: #555;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            resize: vertical;
+            min-height: 100px;
+            transition: border-color 0.3s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        .mode-btn:hover {
+            border-color: #667eea;
+            background: #f5f5ff;
+        }
+        .mode-btn.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .execute-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .execute-btn:hover {
+            transform: translateY(-2px);
+        }
+        .execute-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result-box {
+            margin-top: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            display: none;
+        }
+        .result-box.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .result-title {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .result-content {
+            white-space: pre-wrap;
+            color: #333;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-size: 16px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .examples {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .examples h3 {
+            color: #667eea;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .example-tag {
+            display: inline-block;
+            background: #f0f0f0;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            color: #666;
+            margin: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .example-tag:hover {
+            background: #667eea;
+            color: white;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status-success { background: #4CAF50; color: white; }
+        .status-error { background: #f44336; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI 助手协作平台</h1>
+        <p class="subtitle">输入任务 → AI 自动执行 → 获取结果</p>
+
+        <div class="input-group">
+            <label>💬 你想让我帮你做什么？</label>
+            <textarea id="taskInput" placeholder="例如：帮我写一个 Python 计算器类，支持加减乘除运算..."></textarea>
+        </div>
+
+        <div class="input-group">
+            <label>🎯 执行模式</label>
+            <div class="mode-selector">
+                <button class="mode-btn active" onclick="selectMode('aira+cc')" title="推荐">
+                    🎯 协作模式
+                    <br><small>Aira 分析 + CC 执行</small>
+                </button>
+                <button class="mode-btn" onclick="selectMode('aira_only')" title="仅分析">
+                    📊 仅分析
+                    <br><small>代码审查/咨询</small>
+                </button>
+                <button class="mode-btn" onclick="selectMode('cc_only')" title="快速执行">
+                    ⚡ 快速执行
+                    <br><small>简单任务</small>
+                </button>
+            </div>
+        </div>
+
+        <button class="execute-btn" onclick="executeTask()" id="executeBtn">
+            🚀 开始执行
+        </button>
+
+        <div class="result-box" id="resultBox">
+            <div class="result-title" id="resultTitle">📋 执行结果</div>
+            <div class="result-content" id="resultContent"></div>
+        </div>
+
+        <div class="examples">
+            <h3>💡 不知道写什么？点击试试：</h3>
+            <span class="example-tag" onclick="useExample('帮我写一个 Python 计算器类')">Python 计算器</span>
+            <span class="example-tag" onclick="useExample('帮我创建一个待办事项管理系统')">待办事项系统</span>
+            <span class="example-tag" onclick="useExample('帮我写一个批量处理 Excel 文件的脚本')">Excel 批处理</span>
+            <span class="example-tag" onclick="useExample('帮我审查这段代码的问题：def divide(a,b): return a/b')">代码审查</span>
+            <span class="example-tag" onclick="useExample('帮我写一个判断质数的 Python 函数')">判断质数</span>
+        </div>
+    </div>
+
+    <script>
+        let selectedMode = 'aira+cc';
+
+        function selectMode(mode) {
+            selectedMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.closest('.mode-btn').classList.add('active');
+        }
+
+        function useExample(text) {
+            document.getElementById('taskInput').value = text;
+        }
+
+        async function executeTask() {
+            const task = document.getElementById('taskInput').value.trim();
+            const resultBox = document.getElementById('resultBox');
+            const resultContent = document.getElementById('resultContent');
+            const resultTitle = document.getElementById('resultTitle');
+            const executeBtn = document.getElementById('executeBtn');
+
+            if (!task) {
+                alert('请先输入任务描述！');
+                return;
+            }
+
+            executeBtn.disabled = true;
+            executeBtn.textContent = '⏳ 执行中...';
+            resultBox.classList.remove('show');
+
+            setTimeout(() => {
+                resultBox.style.display = 'block';
+                resultBox.classList.add('show');
+                resultTitle.innerHTML = '<span class="spinner"></span>正在执行任务，请稍候...';
+                resultContent.textContent = 'AI 正在分析你的需求并执行任务，这可能需要几分钟时间。';
+            }, 100);
+
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/workflows/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task: task, mode: selectedMode })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || `HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                resultTitle.innerHTML = `✅ 执行完成 <span class="status-badge status-success">${result.status}</span>`;
+                resultContent.textContent = result.summary || '任务已完成，但没有返回总结信息。';
+
+            } catch (error) {
+                resultTitle.innerHTML = `❌ 执行失败 <span class="status-badge status-error">ERROR</span>`;
+                resultContent.textContent = `错误信息：${error.message}\n\n请检查：\n1. 后端服务是否运行（访问 http://localhost:8000）\n2. 网络连接是否正常`;
+            } finally {
+                executeBtn.disabled = false;
+                executeBtn.textContent = '🚀 开始执行';
+            }
+        }
+
+        // 支持回车执行
+        document.getElementById('taskInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                executeTask();
+            }
+        });
+    </script>
+</body>
+</html>

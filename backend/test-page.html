@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 助手集成平台 - 快速测试</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        h2 { color: #666; font-size: 18px; }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: vertical;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover { background: #45a049; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .result {
+            background: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+        }
+        .loading { color: #2196F3; }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .example {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .example code {
+            background: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🤖 AI 助手集成平台 - 快速测试</h1>
+        <p>这是一个简单的测试界面，帮助你快速体验 Aira + CC 协作功能。</p>
+        
+        <div class="example">
+            <strong>💡 使用示例：</strong>
+            <ul>
+                <li>帮我写一个 Python 计算器类</li>
+                <li>帮我创建一个待办事项管理系统</li>
+                <li>帮我审查这段代码的问题</li>
+                <li>帮我写一个批量处理 Excel 的脚本</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📝 输入你的任务</h2>
+        <textarea id="taskInput" placeholder="在这里输入你想完成的任务，例如：帮我写一个 Python 函数，判断一个数是否为质数"></textarea>
+        
+        <div style="margin-top: 15px;">
+            <label><strong>执行模式：</strong></label>
+            <select id="modeSelect" style="margin-left: 10px; padding: 8px; font-size: 14px;">
+                <option value="aira+cc">🎯 aira+cc（协作模式 - 推荐）</option>
+                <option value="aira_only">📊 aira_only（仅分析）</option>
+                <option value="cc_only">⚡ cc_only（仅执行）</option>
+            </select>
+        </div>
+        
+        <button onclick="executeTask()" id="executeBtn">🚀 执行任务</button>
+        
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="card">
+        <h2>📋 使用说明</h2>
+        <ol>
+            <li>在上方文本框输入你想完成的任务</li>
+            <li>选择执行模式（推荐"协作模式"）</li>
+            <li>点击"执行任务"按钮</li>
+            <li>等待任务完成（可能需要几分钟）</li>
+            <li>查看执行结果和总结</li>
+        </ol>
+    </div>
+
+    <script>
+        async function executeTask() {
+            const task = document.getElementById('taskInput').value.trim();
+            const mode = document.getElementById('modeSelect').value;
+            const resultDiv = document.getElementById('result');
+            const executeBtn = document.getElementById('executeBtn');
+
+            if (!task) {
+                alert('请输入任务描述！');
+                return;
+            }
+
+            // 禁用按钮
+            executeBtn.disabled = true;
+            executeBtn.textContent = '⏳ 执行中...';
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🚀 正在执行任务，请稍候...（可能需要 3-10 分钟）';
+
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/workflows/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        task: task,
+                        mode: mode
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP 错误：${response.status}`);
+                }
+
+                const result = await response.json();
+
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 任务执行完成！\n\n任务 ID: ${result.task_id}\n状态：${result.status}\n\n总结:\n${result.summary || '无总结信息'}`;
+
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 执行失败：${error.message}\n\n请检查：\n1. 后端服务是否运行（http://localhost:8000）\n2. 网络连接是否正常`;
+            } finally {
+                executeBtn.disabled = false;
+                executeBtn.textContent = '🚀 执行任务';
+            }
+        }
+    </script>
+</body>
+</html>

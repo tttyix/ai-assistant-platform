@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - 主数据库
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai-platform-postgres
+    environment:
+      POSTGRES_USER: ai_platform
+      POSTGRES_PASSWORD: ai_platform_secret_2026
+      POSTGRES_DB: ai_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - E:/ai-assistant-platform/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # Redis - 缓存 + 消息队列
+  redis:
+    image: redis:7-alpine
+    container_name: ai-platform-redis
+    command: redis-server --requirepass ai_platform_redis_2026
+    ports:
+      - "6379:6379"
+    volumes:
+      - E:/ai-assistant-platform/data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # Qdrant - 向量数据库
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: ai-platform-qdrant
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+      QDRANT__SERVICE__HTTP_PORT: "6333"
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - E:/ai-assistant-platform/data/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6333/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-network
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  # MinIO - 对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: ai-platform-minio
+    environment:
+      MINIO_ROOT_USER: ai_platform_minio
+      MINIO_ROOT_PASSWORD: ai_platform_minio_secret_2026
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - E:/ai-assistant-platform/data/minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+networks:
+  ai-network:
+    driver: bridge
