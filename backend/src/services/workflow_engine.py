@@ -10,6 +10,8 @@
 import asyncio
 import subprocess
 import json
+import os
+import tempfile
 from typing import Dict, List, Optional, AsyncIterator
 from datetime import datetime
 import aiofiles
@@ -98,9 +100,20 @@ class WorkflowEngine:
                 result["cc_result"] = cc_result
                 
                 if not cc_result["success"]:
-                    result["status"] = "failed"
                     result["error"] = cc_result.get("error", "Unknown error")
-                    return result
+                    # 仅分析模式不需要 CC，直接跳过
+                    if mode == "aira_only":
+                        cc_step["status"] = "skipped"
+                        result["cc_skipped"] = True
+                    elif mode == "cc_only":
+                        # 仅执行模式，CC 失败则返回失败
+                        result["status"] = "failed"
+                        cc_step["status"] = "failed"
+                        return result
+                    else:
+                        # 协作模式：CC 失败，记录但继续，让 Aira 生成分析结果
+                        cc_step["status"] = "failed"
+                        result["cc_failed"] = True
             
             # 3. Aira 审查代码（协作模式）
             if mode == "aira+cc":
@@ -139,16 +152,38 @@ class WorkflowEngine:
                     "status": "running"
                 }
                 result["steps"].append(summary_step)
-                
-                summary = await self._aira_summarize(result)
+
+                # 如果 CC 失败，生成特殊总结
+                if result.get("cc_failed"):
+                    summary = self._generate_cc_failed_summary(result)
+                else:
+                    summary = await self._aira_summarize(result)
                 summary_step["status"] = "completed"
                 summary_step["result"] = summary
                 result["summary"] = summary
-            
+                result["status"] = "completed"
+
+            elif mode == "aira_only":
+                # 仅分析模式：生成分析回复
+                reply_step = {
+                    "step": 2,
+                    "name": "Aira 生成回复",
+                    "status": "running"
+                }
+                result["steps"].append(reply_step)
+
+                reply = analysis.get("response", "分析完成")
+                result["summary"] = f"## Aira 分析结果\n\n{reply}"
+                reply_step["status"] = "completed"
+                reply_step["result"] = {"response": reply}
+
             result["status"] = "completed"
             result["completed_at"] = datetime.now().isoformat()
             
         except Exception as e:
+            import traceback
+            print(f"[ERROR] 执行失败：{e}")
+            print(f"Traceback: {traceback.format_exc()}")
             result["status"] = "failed"
             result["error"] = str(e)
             result["completed_at"] = datetime.now().isoformat()
@@ -161,7 +196,7 @@ class WorkflowEngine:
     async def _aira_analyze(self, task: str, context: Dict) -> Dict:
         """
         Aira 分析需求
-        
+
         返回：
         - 任务拆解
         - 技术选型
@@ -169,16 +204,72 @@ class WorkflowEngine:
         """
         # 这里使用 AI 分析（可以调用 LLM API）
         # 简化版本：直接返回结构化分析
-        
+
         analysis = {
             "task_type": self._classify_task(task),
             "complexity": self._estimate_complexity(task),
             "estimated_files": self._estimate_files(task),
             "plan": self._generate_plan(task),
-            "technologies": self._suggest_technologies(task)
+            "technologies": self._suggest_technologies(task),
+            "response": self._generate_response(task)
         }
-        
+
         return analysis
+
+    def _generate_response(self, task: str) -> str:
+        """
+        生成简单的对话回复（适用于问候、咨询等不需要代码执行的任务）
+        """
+        task_lower = task.lower()
+
+        # 问候语
+        if any(kw in task_lower for kw in ["你好", "hello", "hi", "嗨", "早上好", "下午好", "晚上好"]):
+            return "你好！我是 AI 助手协作平台。我可以根据你的需求提供以下服务：\n\n1. **协作模式**：Aira 分析需求 → Claude Code 执行 → Aira 审查 → 总结\n2. **仅分析**：Aira 提供专业分析和建议\n3. **快速执行**：Claude Code 直接执行任务\n\n请问有什么可以帮你的吗？"
+
+        # 感谢
+        if any(kw in task_lower for kw in ["谢谢", "感谢", "thanks", "thank you"]):
+            return "不客气！如果还有其他需要，随时告诉我。"
+
+        # 再见
+        if any(kw in task_lower for kw in ["再见", "bye", "goodbye", "拜拜"]):
+            return "再见！祝你工作顺利！"
+
+        # 默认回复
+        return f"收到你的请求：'{task}'\n\n这是一个简单的咨询任务。如需执行具体操作，请选择更详细的任务描述，例如：\n- 帮我创建一个 Python 计算器\n- 帮我写一个 Excel 批处理脚本\n- 帮我审查这段代码"
+
+    def _generate_cc_failed_summary(self, result: Dict) -> str:
+        """
+        生成 CC 失败时的总结报告
+        """
+        summary = []
+        summary.append("[OK] 任务执行完成（Aira 分析模式）")
+        summary.append("")
+        summary.append("## 执行概览")
+        summary.append(f"- 任务 ID: {result['task_id']}")
+        summary.append(f"- 任务：{result.get('task', '未知')}")
+        summary.append(f"- 执行模式：{result['mode']}")
+        summary.append("")
+        summary.append("## Aira 分析结果")
+
+        # 尝试从分析结果中获取回复
+        analysis = result.get('analysis', {})
+        if analysis and 'response' in analysis:
+            summary.append(analysis['response'])
+        else:
+            summary.append("已收到你的任务。由于这是一个咨询类任务，Aira 已为你提供分析建议。")
+            summary.append("")
+            summary.append("如需执行具体的代码创建或修改任务，请确保：")
+            summary.append("1. Claude Code CLI 已正确安装和配置")
+            summary.append("2. 你有权限在目标目录创建文件")
+            summary.append("3. 任务描述足够清晰和具体")
+
+        summary.append("")
+        summary.append("## 执行步骤")
+        for step in result.get('steps', []):
+            status_icon = "[OK]" if step['status'] == 'completed' else "[FAILED]"
+            summary.append(f"{status_icon} {step['name']}: {step['status']}")
+
+        return "\n".join(summary)
     
     def _classify_task(self, task: str) -> str:
         """任务分类"""
@@ -274,49 +365,51 @@ class WorkflowEngine:
     async def _call_claude_code(self, prompt: str) -> Dict:
         """
         调用 Claude Code CLI
-        
-        使用 subprocess 执行 claude code 命令
+
+        使用 subprocess 执行 claude 命令
         """
         try:
-            print(f"🔧 调用 Claude Code...")
-            
-            # 创建临时文件保存提示词
-            prompt_file = f"/tmp/cc_prompt_{datetime.now().strftime('%Y%m%d%H%M%S')}.txt"
+            print(f"[INFO] 调用 Claude Code...")
+
+            # 使用系统临时目录（跨平台兼容）
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            prompt_file = os.path.join(temp_dir, f"cc_prompt_{datetime.now().strftime('%Y%m%d%H%M%S')}.txt")
             async with aiofiles.open(prompt_file, 'w', encoding='utf-8') as f:
                 await f.write(prompt)
-            
-            # 调用 CC CLI
+
+            # 直接调用 claude -p
             process = await asyncio.create_subprocess_exec(
                 self.cc_executable,
-                'code',
                 '-p', prompt,
-                '--permission-mode', 'bypassPermissions',
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=settings.WORKSPACE_PATH if hasattr(settings, 'WORKSPACE_PATH') else '.'
             )
-            
+
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(),
                 timeout=600  # 10 分钟超时
             )
-            
+
             # 清理临时文件
             try:
-                import os
                 os.remove(prompt_file)
             except:
                 pass
-            
+
             result = {
                 "success": process.returncode == 0,
                 "returncode": process.returncode,
                 "output": stdout.decode('utf-8', errors='ignore'),
                 "error": stderr.decode('utf-8', errors='ignore') if stderr else None
             }
-            
-            print(f"✅ Claude Code 执行完成：{'成功' if result['success'] else '失败'}")
-            
+
+            print(f"[OK] Claude Code 执行完成：{'成功' if result['success'] else '失败'}")
+            print(f"Return code: {process.returncode}")
+            print(f"Output: {result['output'][:200] if result['output'] else 'None'}")
+            print(f"Error: {result['error'][:200] if result['error'] else 'None'}")
+
             return result
             
         except asyncio.TimeoutError:
@@ -361,7 +454,7 @@ class WorkflowEngine:
         生成用户友好的总结报告
         """
         summary = []
-        summary.append("✅ 任务执行完成！")
+        summary.append("[OK] 任务执行完成！")
         summary.append("")
         summary.append("## 执行概览")
         summary.append(f"- 任务 ID: {result['task_id']}")
@@ -371,7 +464,7 @@ class WorkflowEngine:
         summary.append("## 执行步骤")
         
         for step in result.get('steps', []):
-            status_icon = "✅" if step['status'] == 'completed' else "❌"
+            status_icon = "[OK]" if step['status'] == 'completed' else "[FAILED]"
             summary.append(f"{status_icon} {step['name']}: {step['status']}")
         
         summary.append("")

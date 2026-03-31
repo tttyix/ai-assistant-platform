@@ -437,11 +437,25 @@
             executeBtn.textContent = '⏳ 执行中...';
             resultBox.classList.remove('show');
 
+            // 根据模式显示不同的提示
+            let modeText = '';
+            let modeDesc = '';
+            if (selectedMode === 'aira_only') {
+                modeText = '正在分析任务...';
+                modeDesc = 'Aira 正在分析你的需求并提供专业建议。';
+            } else if (selectedMode === 'cc_only') {
+                modeText = '正在执行任务...';
+                modeDesc = 'Claude Code 正在快速执行，请稍候。';
+            } else {
+                modeText = '正在执行任务，请稍候...';
+                modeDesc = 'Aira 分析 → Claude Code 执行 → Aira 审查 → 总结，这可能需要几分钟时间。';
+            }
+
             setTimeout(() => {
                 resultBox.style.display = 'block';
                 resultBox.classList.add('show');
-                resultTitle.innerHTML = '<span class="spinner"></span>正在执行任务，请稍候...';
-                resultContent.textContent = 'AI 正在分析你的需求并执行任务，这可能需要几分钟时间。';
+                resultTitle.innerHTML = '<span class="spinner"></span>' + modeText;
+                resultContent.textContent = modeDesc;
             }, 100);
 
             // 构建请求体
@@ -457,7 +471,7 @@
             }
 
             try {
-                const response = await fetch('http://localhost:8000/api/v1/workflows/execute', {
+                const response = await fetch('http://localhost:8005/api/v1/workflows/execute', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestBody)
@@ -470,7 +484,7 @@
 
                 const result = await response.json();
 
-                resultTitle.innerHTML = `✅ 执行完成 <span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;background:#4CAF50;color:white;margin-left:10px;">${result.status}</span>`;
+                resultTitle.innerHTML = `[OK] 执行完成 <span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;background:#4CAF50;color:white;margin-left:10px;">${result.status}</span>`;
                 resultContent.textContent = result.summary || '任务已完成，但没有返回总结信息。';
 
                 // 如果启用了专家模式，显示专家信息
@@ -485,8 +499,8 @@
                 }
 
             } catch (error) {
-                resultTitle.innerHTML = `❌ 执行失败 <span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;background:#f44336;color:white;margin-left:10px;">ERROR</span>`;
-                resultContent.textContent = `错误信息：${error.message}\n\n请检查：\n1. 后端服务是否运行（访问 http://localhost:8000）\n2. 网络连接是否正常`;
+                resultTitle.innerHTML = `[FAILED] 执行失败 <span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;background:#f44336;color:white;margin-left:10px;">ERROR</span>`;
+                resultContent.textContent = `错误信息：${error.message}\n\n请检查：\n1. 后端服务是否运行（访问 http://localhost:8005）\n2. 网络连接是否正常`;
             } finally {
                 executeBtn.disabled = false;
                 executeBtn.textContent = '🚀 开始执行';

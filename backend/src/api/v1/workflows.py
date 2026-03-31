@@ -13,7 +13,7 @@ router = APIRouter(tags=["⚡ 工作流协作"])
 
 class WorkflowExecuteRequest(BaseModel):
     """工作流执行请求"""
-    task: str = Field(..., description="任务描述（至少 10 个字符）", min_length=10, example="帮我创建一个 Python 计算器")
+    task: str = Field(..., description="任务描述", min_length=1, example="帮我创建一个 Python 计算器")
     mode: str = Field(default="aira+cc", description="执行模式：aira+cc（协作）| aira_only（仅分析）| cc_only（仅执行）", example="aira+cc")
     context: Optional[Dict] = Field(default=None, description="上下文信息（如技术栈、功能需求等）", example={"technologies": ["FastAPI", "PostgreSQL"]})
 
