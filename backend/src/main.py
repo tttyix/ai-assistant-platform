@@ -9,6 +9,7 @@ from .config import get_settings
 from .api.v1 import chat_router, knowledge_router, models_router, workflows_router
 from .providers.model_registry import init_providers
 from .database import init_db
+from .utils.langsmith_tracing import init_langsmith, setup_langsmith_middleware
 
 settings = get_settings()
 
@@ -44,6 +45,19 @@ async def lifespan(app: FastAPI):
         init_providers(settings)
     except Exception as e:
         print(f"Warning: AI 模型提供商初始化失败：{e}")
+
+    # 初始化 LangSmith 追踪
+    print("\n正在初始化 LangSmith 追踪...")
+    try:
+        init_langsmith()
+    except Exception as e:
+        print(f"Warning: LangSmith 初始化失败：{e}")
+
+    # 设置 LangSmith 中间件
+    try:
+        setup_langsmith_middleware(app)
+    except Exception as e:
+        print(f"Warning: LangSmith 中间件设置失败：{e}")
 
     # 输出配置信息
     print(f"\nINFO: 配置信息:")

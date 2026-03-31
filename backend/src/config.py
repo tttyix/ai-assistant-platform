@@ -59,9 +59,16 @@ class Settings(BaseSettings):
     # ========== CORS 配置 ==========
     CORS_ORIGINS: list = ["*"]
 
+    # ========== LangSmith 配置 ==========
+    LANGSMITH_API_KEY: str = ""
+    LANGSMITH_TRACING: bool = False
+    LANGSMITH_PROJECT: str = "ai-assistant-platform"
+    LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
+
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 @lru_cache()

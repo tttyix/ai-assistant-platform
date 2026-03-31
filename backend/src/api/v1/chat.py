@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 import uuid
+import time
 
 from ... import database
 from ...models.conversation import Conversation
@@ -20,6 +21,7 @@ from ...schemas.chat import (
     ConversationResponse,
     MessageResponse,
 )
+from ...utils.langsmith_tracing import LangSmithTracer
 
 router = APIRouter()
 
@@ -31,23 +33,21 @@ async def create_completion(
     request: ChatCompletionRequest,
     db: Session = Depends(database.get_db)
 ):
-    """
-    创建对话完成
+    """创建对话完成"""
+    start_time = time.time()
+    tracer = LangSmithTracer()
 
-    调用 AI 模型生成回复，并可选保存到数据库
+    run = tracer.start_trace(
+        name="chat_completion",
+        run_type="chain",
+        inputs={
+            "model": request.model,
+            "messages": request.messages,
+            "conversation_id": request.conversation_id,
+        }
+    )
 
-    Args:
-        request: 对话完成请求
-        db: 数据库会话
-
-    Returns:
-        ChatCompletionResponse: 对话完成响应
-
-    Raises:
-        HTTPException: 当模型调用失败时抛出
-    """
     try:
-        # 构建对话请求
         chat_messages = [
             ChatMessage(role=msg["role"], content=msg["content"])
             for msg in request.messages
@@ -61,10 +61,18 @@ async def create_completion(
             stream=request.stream
         )
 
-        # 调用模型
         response = await model_registry.chat(chat_request)
+        latency_ms = (time.time() - start_time) * 1000
 
-        # 保存到数据库（如果指定了 conversation_id）
+        tracer.log_llm_call(
+            model=request.model,
+            messages=request.messages,
+            response=response.content,
+            tokens=response.tokens_used or {},
+            latency_ms=latency_ms,
+            run=run
+        )
+
         if request.conversation_id:
             try:
                 conversation_uuid = uuid.UUID(request.conversation_id)
@@ -76,26 +84,25 @@ async def create_completion(
                     tokens_used=response.tokens_used.get("total_tokens", 0)
                 )
                 db.add(message)
-
-                # 更新对话的最后消息时间
                 conversation = db.query(Conversation).filter(
                     Conversation.id == conversation_uuid
                 ).first()
                 if conversation:
                     conversation.last_message_at = datetime.utcnow()
                     conversation.updated_at = datetime.utcnow()
-
                 db.commit()
             except (ValueError, Exception) as e:
-                # 保存失败不影响返回结果
                 db.rollback()
                 print(f"保存消息失败：{e}")
 
+        tracer.end_trace(run=run, outputs={"content": response.content, "tokens": response.tokens_used})
         return response
 
     except ValueError as e:
+        tracer.end_trace(run=run, error=str(e))
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        tracer.end_trace(run=run, error=str(e))
         raise HTTPException(status_code=500, detail=f"模型调用失败：{str(e)}")
 
 

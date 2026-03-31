@@ -1,14 +1,14 @@
 """
 RAG 服务 - 检索增强生成 (Retrieval-Augmented Generation)
-
-提供文档加载、分块、向量化存储和检索功能
 """
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 from typing import List, Dict, Optional
 import torch
+import time
 
 from ..config import get_settings
+from ..utils.langsmith_tracing import LangSmithTracer
 
 settings = get_settings()
 
@@ -315,57 +315,49 @@ class RAGService:
         knowledge_base_id: Optional[str] = None,
         top_k: int = None
     ) -> List[Dict]:
-        """
-        查询知识库
+        """查询知识库"""
+        start_time = time.time()
+        tracer = LangSmithTracer()
 
-        Args:
-            question: 查询问题
-            knowledge_base_id: 知识库 ID（可选）
-            top_k: 返回结果数量
+        run = tracer.start_trace(
+            name="rag_query",
+            run_type="retriever",
+            inputs={"question": question, "kb_id": knowledge_base_id}
+        )
 
-        Returns:
-            List[Dict]: 查询结果列表，每项包含 text、source、score
-
-        Raises:
-            ValueError: 当 Qdrant 客户端未连接时抛出
-        """
         if self.qdrant_client is None:
+            tracer.end_trace(run=run, error="Qdrant 客户端未连接")
             raise ValueError("Qdrant 客户端未连接")
 
         top_k = top_k or self.settings.TOP_K
 
-        # 向量化查询
-        query_embedding = self._embed_text(question)
+        try:
+            query_embedding = self._embed_text(question)
+            query_filter = None
+            if knowledge_base_id:
+                query_filter = Filter(
+                    must=[FieldCondition(key="kb_id", match=MatchValue(value=knowledge_base_id))]
+                )
 
-        # 构建过滤器
-        query_filter = None
-        if knowledge_base_id:
-            query_filter = Filter(
-                must=[
-                    FieldCondition(
-                        key="kb_id",
-                        match=MatchValue(value=knowledge_base_id)
-                    )
-                ]
+            results = self.qdrant_client.search(
+                collection_name=self.collection_name,
+                query_vector=query_embedding,
+                query_filter=query_filter,
+                limit=top_k
             )
 
-        # 搜索
-        results = self.qdrant_client.search(
-            collection_name=self.collection_name,
-            query_vector=query_embedding,
-            query_filter=query_filter,
-            limit=top_k
-        )
+            formatted_results = [
+                {"text": r.payload.get("text", ""), "source": r.payload.get("source", ""), "score": float(r.score)}
+                for r in results
+            ]
 
-        # 格式化结果
-        return [
-            {
-                "text": result.payload.get("text", ""),
-                "source": result.payload.get("source", ""),
-                "score": float(result.score)
-            }
-            for result in results
-        ]
+            latency_ms = (time.time() - start_time) * 1000
+            tracer.end_trace(run=run, outputs={"results": formatted_results, "latency_ms": latency_ms})
+            return formatted_results
+
+        except Exception as e:
+            tracer.end_trace(run=run, error=str(e))
+            raise
 
     async def ingest_text(
         self,
